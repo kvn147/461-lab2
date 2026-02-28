@@ -4,6 +4,7 @@
 # which is based on of_tutorial by James McCauley
 
 from pox.core import core
+from pox.lib.packet.ethernet import ethernet
 import pox.openflow.libopenflow_01 as of
 
 log = core.getLogger()
@@ -25,6 +26,12 @@ class Firewall(object):
 
         # add switch rules here
 
+        #match = of.ofp_match()
+        # dl_src, dl_dst for ethernet
+        # dl_type for ethertype / length -> 0x0800 = IPv4
+        # nw_proto for IP protocol
+        # nw_src, nw_dst for IP source/dest addresses
+
     def _handle_PacketIn(self, event):
         """
         Packets not handled by the router rules will be
@@ -34,6 +41,36 @@ class Firewall(object):
         packet = event.parsed  # This is the parsed packet data.
         if not packet.parsed:
             log.warning("Ignoring incomplete packet")
+            return
+
+        # if ARP
+        if packet.type == ethernet.ARP_TYPE:
+            msg = of.ofp_flow_mod()
+            msg.match.dl_type = ethernet.ARP_TYPE
+            msg.priority = 300
+            msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+            msg.data = event.ofp
+            self.connection.send(msg)
+        elif packet.type == ethernet.IP_TYPE:
+            ip_packet = packet.next # check protocol
+            
+            # if ICMP
+            if ip_packet.protocol == 1:
+                msg = of.ofp_flow_mod()
+                msg.match.dl_type = ethernet.IP_TYPE
+                msg.match.nw_proto = 1
+                msg.priority = 200
+                msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+                msg.data = event.ofp
+                self.connection.send(msg)
+            # drop other IP packets
+            else:
+                msg = of.ofp_flow_mod()
+                msg.match.dl_type = ethernet.IP_TYPE
+                msg.priority = 100
+                self.connection.send(msg)
+        else:
+            # drop other packets
             return
 
         packet_in = event.ofp  # The actual ofp_packet_in message.
