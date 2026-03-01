@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
-from mininet.topo import Topo
-from mininet.net import Mininet
-from mininet.util import dumpNodeConnections
-from mininet.log import setLogLevel
 from mininet.cli import CLI
+from mininet.log import setLogLevel
+from mininet.net import Mininet
 from mininet.node import RemoteController
+from mininet.topo import Topo
+from mininet.util import dumpNodeConnections
 
 
 class part3_topo(Topo):

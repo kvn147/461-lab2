@@ -3,9 +3,9 @@
 # based on Lab 4 from UCSC's Networking Class
 # which is based on of_tutorial by James McCauley
 
+import pox.openflow.libopenflow_01 as of
 from pox.core import core
 from pox.lib.packet.ethernet import ethernet
-import pox.openflow.libopenflow_01 as of
 
 log = core.getLogger()
 
@@ -26,7 +26,7 @@ class Firewall(object):
 
         # add switch rules here
 
-        #match = of.ofp_match()
+        # match = of.ofp_match()
         # dl_src, dl_dst for ethernet
         # dl_type for ethertype / length -> 0x0800 = IPv4
         # nw_proto for IP protocol
@@ -52,8 +52,8 @@ class Firewall(object):
             msg.data = event.ofp
             self.connection.send(msg)
         elif packet.type == ethernet.IP_TYPE:
-            ip_packet = packet.next # check protocol
-            
+            ip_packet = packet.next  # check protocol
+
             # if ICMP
             if ip_packet.protocol == 1:
                 msg = of.ofp_flow_mod()
