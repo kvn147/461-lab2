@@ -5,7 +5,7 @@
 
 import pox.openflow.libopenflow_01 as of
 from pox.core import core
-from pox.lib.addresses import EthAddr, IPAddr, IPAddr6
+from pox.lib.addresses import IPAddr
 
 log = core.getLogger()
 
@@ -33,6 +33,12 @@ ROUTING_TABLE = {
     "10.0.3.0/24": 3,
     "10.0.4.0/24": 4,
     "172.16.10.0/24": 5,
+}
+
+PRIORITY = {
+    "FIREWALL": 100,
+    "ROUTING": 10,
+    "FLOODING": 1,
 }
 
 
@@ -81,21 +87,21 @@ class Part3Controller(object):
         message.priority = 100
         message.match.dl_type = 0x0800
         message.match.nw_proto = 1
-        message.match.nw_src = IPS["hnotrust"]
+        message.match.nw_src = IPAddr(IPS["hnotrust"])
         self.connection.send(message)
 
         # Block all IP from Untrusted Host to Server.
         message = of.ofp_flow_mod()
-        message.priority = 100
+        message.priority = PRIORITY["FIREWALL"]
         message.match.dl_type = 0x0800
-        message.match.nw_src = IPS["hnotrust"]
-        message.match.nw_dst = IPS["serv1"]
+        message.match.nw_src = IPAddr(IPS["hnotrust"])
+        message.match.nw_dst = IPAddr(IPS["serv1"])
         self.connection.send(message)
 
         # Routing Rules
         for subnet, port in ROUTING_TABLE.items():
             message = of.ofp_flow_mod()
-            message.priority = 10
+            message.priority = PRIORITY["ROUTING"]
             message.match.dl_type = 0x0800
             message.match.nw_dst = subnet
             message.actions.append(of.ofp_action_output(port=port))
@@ -106,7 +112,7 @@ class Part3Controller(object):
 
     def _install_flood_rule(self):
         message = of.ofp_flow_mod()
-        message.priority = 1
+        message.priority = PRIORITY["FLOODING"]
         message.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
         self.connection.send(message)
 
