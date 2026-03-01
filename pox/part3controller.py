@@ -98,6 +98,13 @@ class Part3Controller(object):
         message.match.nw_dst = IPAddr(IPS["serv1"])
         self.connection.send(message)
 
+        # ARP
+        msg = of.ofp_flow_mod()
+        msg.priority = PRIORITY["FLOODING"]
+        msg.match.dl_type = 0x0806
+        msg.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(msg)
+
         # Routing Rules
         for subnet, port in ROUTING_TABLE.items():
             message = of.ofp_flow_mod()
