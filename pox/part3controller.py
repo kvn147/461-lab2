@@ -35,12 +35,14 @@ class Part3Controller(object):
 
     def __init__(self, connection):
         print(connection.dpid)
+
         # Keep track of the connection to the switch so that we can
         # send it messages!
         self.connection = connection
 
         # This binds our PacketIn event listener
         connection.addListeners(self)
+
         # use the dpid to figure out what switch is being created
         if connection.dpid == 1:
             self.s1_setup()
@@ -92,15 +94,58 @@ class Part3Controller(object):
         forwarded to this method to be handled by the controller
         """
 
-        packet = event.parsed  # This is the parsed packet data.
+        packet = event.parsed
+
         if not packet.parsed:
             log.warning("Ignoring incomplete packet")
             return
 
-        packet_in = event.ofp  # The actual ofp_packet_in message.
-        print(
-            "Unhandled packet from " + str(self.connection.dpid) + ":" + packet.dump()
-        )
+        ip_packet = packet.find("ipv4")
+        icmp_packet = packet.find("icmp")
+
+        # Block ICMP traffic from Untrusted Host.
+        if icmp_packet and str(icmp_packet.srcip) == IPS["hnotrust"]:
+            return
+
+        # Block IP traffic from Untrusted Host to Server 1.
+        if (
+            ip_packet
+            and str(ip_packet.srcip) == IPS["hnotrust"]
+            and str(ip_packet.dstip) == IPS["serv1"]
+        ):
+            return
+
+        in_packet = event.ofp
+
+        # Allow traffic between all hosts.
+        match self.connection.dpid:
+            # Core Router: Forward to intended destination.
+            case 21:
+                out_port = 0
+
+                message = of.ofp_packet_out()
+                message.data = in_packet.data
+                message.actions.append(of.ofp_action_output(port=out_port))
+
+                event.connection.send(message)
+                return
+
+            # Secondary Routers: Flood
+            case 1 | 2 | 3 | 31:
+                message = of.ofp_packet_out()
+                message.data = in_packet.data
+                message.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+
+                event.connection.send(message)
+                return
+
+            case _:
+                print(
+                    "Unhandled packet from "
+                    + str(self.connection.dpid)
+                    + ":"
+                    + packet.dump()
+                )
 
 
 def launch():
