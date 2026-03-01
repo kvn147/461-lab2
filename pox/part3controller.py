@@ -27,6 +27,14 @@ SUBNETS = {
     "hnotrust": "172.16.10.0/24",
 }
 
+ROUTING_TABLE = {
+    "10.0.1.0/24": 1,
+    "10.0.2.0/24": 2,
+    "10.0.3.0/24": 3,
+    "10.0.4.0/24": 4,
+    "172.16.10.0/24": 5,
+}
+
 
 class Part3Controller(object):
     """
@@ -59,24 +67,48 @@ class Part3Controller(object):
             exit(1)
 
     def s1_setup(self):
-        # put switch 1 rules here
-        pass
+        self._install_flood_rule()
 
     def s2_setup(self):
-        # put switch 2 rules here
-        pass
+        self._install_flood_rule()
 
     def s3_setup(self):
-        # put switch 3 rules here
-        pass
+        self._install_flood_rule()
 
     def cores21_setup(self):
-        # put core switch rules here
-        pass
+        # Block ICMP from Untrusted Host.
+        message = of.ofp_flow_mod()
+        message.priority = 100
+        message.match.dl_type = 0x0800
+        message.match.nw_proto = 1
+        message.match.nw_src = IPS["hnotrust"]
+        self.connection.send(message)
+
+        # Block all IP from Untrusted Host to Server.
+        message = of.ofp_flow_mod()
+        message.priority = 100
+        message.match.dl_type = 0x0800
+        message.match.nw_src = IPS["hnotrust"]
+        message.match.nw_dst = IPS["serv1"]
+        self.connection.send(message)
+
+        # Routing Rules
+        for subnet, port in ROUTING_TABLE.items():
+            message = of.ofp_flow_mod()
+            message.priority = 10
+            message.match.dl_type = 0x0800
+            message.match.nw_dst = subnet
+            message.actions.append(of.ofp_action_output(port=port))
+            self.connection.send(message)
 
     def dcs31_setup(self):
-        # put datacenter switch rules here
-        pass
+        self._install_flood_rule()
+
+    def _install_flood_rule(self):
+        message = of.ofp_flow_mod()
+        message.priority = 1
+        message.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
+        self.connection.send(message)
 
     # used in part 4 to handle individual ARP packets
     # not needed for part 3 (USE RULES!)
@@ -100,52 +132,9 @@ class Part3Controller(object):
             log.warning("Ignoring incomplete packet")
             return
 
-        ip_packet = packet.find("ipv4")
-        icmp_packet = packet.find("icmp")
-
-        # Block ICMP traffic from Untrusted Host.
-        if icmp_packet and str(icmp_packet.srcip) == IPS["hnotrust"]:
-            return
-
-        # Block IP traffic from Untrusted Host to Server 1.
-        if (
-            ip_packet
-            and str(ip_packet.srcip) == IPS["hnotrust"]
-            and str(ip_packet.dstip) == IPS["serv1"]
-        ):
-            return
-
-        in_packet = event.ofp
-
-        # Allow traffic between all hosts.
-        match self.connection.dpid:
-            # Core Router: Forward to intended destination.
-            case 21:
-                out_port = 0
-
-                message = of.ofp_packet_out()
-                message.data = in_packet.data
-                message.actions.append(of.ofp_action_output(port=out_port))
-
-                event.connection.send(message)
-                return
-
-            # Secondary Routers: Flood
-            case 1 | 2 | 3 | 31:
-                message = of.ofp_packet_out()
-                message.data = in_packet.data
-                message.actions.append(of.ofp_action_output(port=of.OFPP_FLOOD))
-
-                event.connection.send(message)
-                return
-
-            case _:
-                print(
-                    "Unhandled packet from "
-                    + str(self.connection.dpid)
-                    + ":"
-                    + packet.dump()
-                )
+        print(
+            "Unhandled packet from " + str(self.connection.dpid) + ":" + packet.dump()
+        )
 
 
 def launch():
