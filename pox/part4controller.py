@@ -5,7 +5,7 @@
 
 import pox.openflow.libopenflow_01 as of
 from pox.core import core
-from pox.lib.addresses import IPAddr
+from pox.lib.addresses import IPAddr, EthAddr
 from pox.lib.packet.arp import arp
 from pox.lib.packet.ethernet import ethernet
 
@@ -140,7 +140,7 @@ class Part3Controller(object):
             if packet.src not in self.seen:
                 # mark this device as seen, and add a rule for its ip/port pair
                 log.info("discovered %s, creating rule (%s, %i)", packet.src, packet.payload.protosrc, event.port)
-                self.seen.add(packet.src)
+                # self.seen.add(packet.src)
                 message = of.ofp_flow_mod()
                 message.priority = PRIORITY["ROUTING"]
                 message.match.dl_type = ethernet.IP_TYPE
@@ -149,7 +149,7 @@ class Part3Controller(object):
                 self.connection.send(message)
             # then construct and send the ARP reply
             reply = arp()
-            reply.hwsrc = "de:ad:be:ef:ca:fe" # dummy mac
+            reply.hwsrc = EthAddr("de:ad:be:ef:ca:fe") # dummy mac
             reply.hwdst = packet.src
             reply.opcode = arp.REPLY
             reply.protosrc = packet.payload.protodst # tell requester that we are their target
@@ -157,10 +157,10 @@ class Part3Controller(object):
             ether = ethernet()
             ether.type = ethernet.ARP_TYPE
             ether.dst = packet.src
-            ether.src = "de:ad:be:ef:ca:fe" # dummy mac again
+            ether.src = EthAddr("de:ad:be:ef:ca:fe") # dummy mac again
             ether.payload = reply
             log.info("telling %s that I am %s", packet.src, packet.payload.protodst)
-            self.resend_packet(ether.pack, event.port)
+            self.resend_packet(ether.pack(), event.port)
         # else: we received something that isn't an arp request.
         # drop all of these -- we rely on installing rules to handle ip traffic, and
         # it's okay to drop ip traffic before we have a rule.
