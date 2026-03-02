@@ -140,7 +140,7 @@ class Part3Controller(object):
             if packet.src not in self.seen:
                 # mark this device as seen, and add a rule for its ip/port pair
                 log.info("discovered %s, creating rule (%s, %i)", packet.src, packet.payload.protosrc, event.port)
-                # self.seen.add(packet.src)
+                self.seen.add(packet.src)
                 message = of.ofp_flow_mod()
                 message.priority = PRIORITY["ROUTING"]
                 message.match.dl_type = ethernet.IP_TYPE
