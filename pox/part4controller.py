@@ -52,7 +52,7 @@ class Part3Controller(object):
     def __init__(self, connection):
         print(connection.dpid)
         # holds devices we've already seen so we don't install duplicate rules.
-        self.seen = set()
+        self.seen = {}
 
         # Keep track of the connection to the switch so that we can
         # send it messages!
@@ -137,10 +137,10 @@ class Part3Controller(object):
         # and arp reply that we are the target ip
         if packet.type == ethernet.ARP_TYPE and packet.payload.opcode == arp.REQUEST:
             # check if packet is from a sender without a rule
-            if packet.src not in self.seen:
+            if packet.payload.protosrc not in self.seen:
                 # mark this device as seen, and add a rule for its ip/port pair
                 log.info("discovered %s, creating rule (%s, %i)", packet.src, packet.payload.protosrc, event.port)
-                self.seen.add(packet.src)
+                self.seen[packet.payload.protosrc] = event.port
                 message = of.ofp_flow_mod()
                 message.priority = PRIORITY["ROUTING"]
                 message.match.dl_type = ethernet.IP_TYPE
@@ -161,9 +161,12 @@ class Part3Controller(object):
             ether.payload = reply
             log.info("telling %s that I am %s", packet.src, packet.payload.protodst)
             self.resend_packet(ether.pack(), event.port)
-        # else: we received something that isn't an arp request.
-        # drop all of these -- we rely on installing rules to handle ip traffic, and
-        # it's okay to drop ip traffic before we have a rule.
+        elif packet.type == ethernet.IP_TYPE:
+            log.info("received ip packet from %s to %s", packet.payload.srcip, packet.payload.dstip)
+            if packet.payload.dstip in self.seen:
+                self.resend_packet(packet, self.seen[packet.payload.dstip])
+            
+        # else: we received an ip packet that we don't know how to handle, or non-ip non-arp packet. fine to drop.
 
 
 
