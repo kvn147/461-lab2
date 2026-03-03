@@ -145,6 +145,7 @@ class Part3Controller(object):
                 message.priority = PRIORITY["ROUTING"]
                 message.match.dl_type = ethernet.IP_TYPE
                 message.match.nw_dst = packet.payload.protosrc
+                message.actions.append(of.ofp_action_dl_addr.set_dst(packet.src)) # rewrite dst mac to match sender's mac
                 message.actions.append(of.ofp_action_output(port=event.port))
                 self.connection.send(message)
             # then construct and send the ARP reply
